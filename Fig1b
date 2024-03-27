@@ -1,0 +1,45 @@
+#required packages 
+library(readxl)
+library(ggpubr)
+library(ggsci)
+
+# make a blank list to store the figs
+pairedboxlot_list <- list()
+
+#import data and assign rank order
+envparied <- as.data.frame(read_excel("Fig1b.xlsx",sheet = "fig1b"))
+envparied$Layer <- factor(envparied$Layer, levels = c("Hummocks","Hollows"))
+
+# fig drawing
+for (i in 4:ncol(envparied)) {
+  # extract column name
+  col_name <- colnames(envparied)[i]
+  print(col_name)
+  # drawing
+  paiedboxlot <- ggplot(envparied, aes_string(x = "Layer", y = col_name)) + 
+    geom_boxplot(aes(color = Layer), show.legend = F, width = 0.5, lwd = 1) + #boxplot
+    scale_fill_manual(values = c("#D2797F","#99BED8")) + #color
+    geom_point(size = 5,shape = 21,aes(fill = Layer)) + 
+    scale_color_manual(values = c("#D2797F","#99BED8")) + #scatter
+    geom_line(aes(group = paired), color = 'gray', lwd = 1) + #paired line
+    theme(panel.grid = element_blank(), 
+          axis.line = element_line(colour = 'black', size = 0.5), 
+          legend.position = "none",
+          panel.background = element_blank(), 
+          axis.text = element_text(size = 15, color = 'black'), 
+          axis.title = element_text(size = 15, color = 'black')) +
+    labs(x = '', y = '', title = '') +
+    stat_compare_means(data = envparied[1:20,], method = "wilcox.test",paired = TRUE, comparisons=list(c("Hummocks", "Hollows"))) +#paired wilcox test 
+    ylab(col_name)
+  # add figs to the list
+  pairedboxlot_list[[i - 3]] <- paiedboxlot
+}
+
+# combined all figures
+combined_plot <- cowplot::plot_grid(plotlist = pairedboxlot_list, nrow = 1, ncol = 3)
+
+# preview the figs
+print(combined_plot) 
+
+# save as a pdf file
+ggsave("fig1b.pdf", width=12, height=4)

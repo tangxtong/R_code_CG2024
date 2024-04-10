@@ -1,0 +1,59 @@
+#Mantel test to display the relationship of bacterial community composition and brGDGTs (CLs and IPLs) and environmental variables. 
+#import packages
+library(tidyverse) 
+library(linkET)
+library(vegan)
+#microbial taxa
+Bac <- read.table("otutab_Bac.txt",header = T, row.names = 1, stringsAsFactors = F)
+#envs
+Env <- read.table("env.txt",header = T, row.names = 1, stringsAsFactors = F)
+Env <- Env[,-1]
+#GDGTs
+IPLs <- read.table("IPLs.txt",header = T, row.names = 1, stringsAsFactors = F)
+CLs <- read.table("CLs.txt",header = T, row.names = 1, stringsAsFactors = F)
+identical(rownames(IPLs), rownames(CLs)[-1])
+gdgts <- cbind(IPLs, CLs[-1,])
+identical(rownames(gdgts), rownames(Bac)[-1])
+Biodata = cbind(gdgts,Bac[-1,])
+#mantel test
+mantel <- mantel_test(spec = Biodata, 
+                      env = scale(Env[-1,]),
+                      seed = 123,
+                      spec_select = list(IPLs = 1:ncol(IPLs),
+                      					 CLs = (ncol(IPLs)+1):ncol(gdgts),
+                                         Bacteria = (ncol(gdgts)+1):ncol(Biodata))) %>% 
+  mutate(rd = cut(r, breaks = c(-Inf, 0.3, 0.6, 0.9, Inf), # 对相关系数进行分割，便于映射大小
+                  labels = c("< 0.3", "0.3 - 0.6", "0.6 - 0.9", ">= 0.9")),
+         pd = cut(p, breaks = c(-Inf, 0.01, 0.05, Inf), # 对P值进行分割，便于映射颜色
+                  labels = c("**", "*", "ns")))
+
+                  
+# visualization
+Man <- qcorrplot(correlate(Env, method = "pearson", adjust = F),diag=F,type="upper")+
+  geom_tile()+
+  geom_mark(size=2.5, sig_thres=NULL,sep="\n")+
+  geom_couple(aes(colour=pd,size=rd),data=mantel, label.colour = "black",
+              curvature=nice_curvature(0.15),
+              nudge_x=0.2,
+              label.fontface=2,
+              label.size =4,
+              drop = T) +
+  scale_fill_gradientn(colours = RColorBrewer::brewer.pal(11,"RdBu"))+
+  scale_size_manual(values = c(0.3, 0.5, 0.7, 0.9)) +
+  scale_colour_manual(values = color_pal(3)) +
+  guides(size = guide_legend(title = "Mantel's r",
+                             override.aes = list(colour = "grey35"), 
+                             order = 2),
+         colour = guide_legend(title = "Mantel's p", 
+                               override.aes = list(size = 3), 
+                               order = 1),
+         fill = guide_colorbar(title = "Pearson's r", order = 3)) +
+  theme(plot.margin = unit(c(0,0,0,-1),units="cm"),
+        panel.background = element_blank(),
+        axis.text=element_formula(color="black",size=10),
+        legend.background = element_blank(),
+        legend.key = element_blank())
+
+Man
+# save
+ggsave("CLs_IPLs_Bac_mantel.pdf",Man, device = "pdf",width = 12,height = 10)

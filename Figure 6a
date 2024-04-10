@@ -1,0 +1,106 @@
+#construct the network to explore the association of IPL-derived brGDGT fractions with specific bacterial taxa.
+##import packages
+library(WGCNA)
+library(psych)
+library(reshape2)
+library(igraph)
+
+#import OTU table, OTU as rows and samples in column
+asvs <- read.table("otutab_Bac.txt",header = T, row.names = 1, stringsAsFactors = F)
+asvs <- t(asvs)
+#import envs/GDGTs, smaples in row, GDGT+Envs in column
+ipl <- read.table("env_IPL_P.txt",header = T, row.names = 1, stringsAsFactors = F)
+
+otu_table <- apply(asvs,2,function(x)x/sum(x)*100) #calculate relative abundance
+# calculate the frequency of OTUs
+presence <- apply(otu_table, 1, function(row) sum(row > 0))
+presence_percentage <- presence / ncol(otu_table) * 100
+# filter the OTU  
+filtered_otu_table <- otu_table[presence_percentage >= 25, ]#appearance > 25%
+filtered_otu_table2 <- filtered_otu_table[rowMeans(filtered_otu_table) > 0.01, ] #frequency > 1%
+dim(filtered_otu_table2)
+    
+write.csv(filtered_otu_table2,"filtered_otu_table0.05.csv")
+       
+identical(colnames(filtered_otu_table2[,-1]), colnames(t(ipl)))
+
+prf_all <- as.data.frame(rbind(filtered_otu_table2[,-1], t(ipl)))
+
+identical(colnames(t(ipl)), colnames(prf_all))
+# correlation calculation
+occor <- network_construct(t(prf_all),8)
+
+occor.r <- occor$r # get the correlation matrix R value
+occor.p <- occor$p # get the correlation matrix p value
+
+# filter the correlation matrix
+occor.r[occor.p > 0.05|abs(occor.r) < 0.6] = 0 
+occor.r_f <- occor.r
+
+##Generate the index of ASVs
+asv_indexes <- grep("^ASV", rownames(occor.r_f))
+occor.r_f[asv_indexes, asv_indexes] <- 0
+
+# Find and remove the index with rows and columns of 0
+zero_rows <- which(rowSums(occor.r_f) == 0)
+zero_cols <- which(colSums(occor.r_f) == 0)
+
+filtered_adj_matrix <- occor.r_f[-zero_rows, -zero_cols]
+dim(filtered_adj_matrix)
+
+igraph <- graph_from_adjacency_matrix(filtered_adj_matrix, mode="undirected", weighted=TRUE, diag=FALSE)
+
+igraph <- graph_from_data_frame(filtered_adj_matrix, directed=FALSE)
+
+# remove isolated nodes
+bad.vs <- V(igraph)[degree(igraph) == 0]
+igraph <- delete.vertices(igraph, bad.vs)
+
+#save the adjacent matrix and graph file, then visualize the graph by Gephi
+write.csv(filtered_adj_matrix,"IPL_f_all.csv", row.names = TRUE, quote = FALSE)
+
+write.graph(igraph,file="IPL_all.graphml", format="graphml") 
+
+#define network_construct function
+network_construct <- function(otu_table,threads){
+  library(foreach)
+  library(doParallel)
+  library(abind)
+  otu_table2 <- apply(otu_table,2,rank)
+  r <- function(rx,ry){
+    n <- length(rx)
+    lxy <- sum((rx-mean(rx))*(ry-mean(ry)))
+    lxx <- sum((rx-mean(rx))^2)
+    lyy <- sum((ry-mean(ry))^2)
+    r <- lxy/sqrt(lxx*lyy)
+    t <- (r * sqrt(n - 2))/sqrt(1 - r^2)
+    p <- -2 * expm1(pt(abs(t), (n - 2), log.p = TRUE))
+    return(c(r,p))
+  }
+  arraybind <- function(...){
+    abind(...,along = 3,force.array=TRUE)
+  }
+  nc <- ncol(otu_table)
+  registerDoParallel(cores = threads)
+  corr <- foreach (i = 1:nc,.combine = "arraybind") %dopar%{
+    corr1 <- matrix(rep(0,2*nc),nrow = 2,ncol=nc)
+    for(j in 1:nc) {
+      if(j > i) corr1[,j] <- r(otu_table2[,i],otu_table2[,j])
+    }
+    corr <- corr1
+  }
+  rr <- corr[1,,]
+  rr <- rr+t(rr)
+  diag(rr) <- 1
+  pp <- corr[2,,]
+  lp <- lower.tri(pp)
+  pa <- pp[lp]
+  pa <- p.adjust(pa, "fdr")
+  pp[lower.tri(pp, diag = FALSE)] <- pa
+  pp <- pp+t(pp)
+  rownames(pp) <- colnames(otu_table)
+  colnames(pp) <- colnames(otu_table)
+  rownames(rr) <- colnames(otu_table)
+  colnames(rr) <- colnames(otu_table)
+  return(list(r = rr,p = pp))
+}

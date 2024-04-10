@@ -1,0 +1,85 @@
+#barplot for the abundance of brGDGTs and bacteria between the hummocks and hollows in the NMC and YZYC peatlands. 
+library(ggplot2)
+library(ggpubr)
+library(ggrepel)
+library(ggalluvial)
+library(readxl)
+library(reshape2)
+#-----------gdgt------------------------------------
+
+cl <- read.table("Fig3a_cl_br.txt", header = T, stringsAsFactors = F)
+ipl <- read.table("Fig3b_ipl_br.txt", header = T, stringsAsFactors = F)
+
+Palette_br<- c("#CBE0F4","#A6C4D0","#A7D0D8", "#9BC4E0","#88ACBC","#3C979F","#709ED0",
+            "#E6EEE9","#AFC8B2","#8FA678","#DFEAA6","#9CBB89","#A2D188","#96B23C")
+
+
+library(reshape2)
+cl_l <- melt(cl)
+ipl_l <- melt(ipl)
+library(ggplot2)
+library(ggalluvial)
+
+p_cl <- ggplot(data = cl_l,aes(x = SampleID, y = value, alluvium = variable, stratum = variable)) + 
+  geom_alluvium(aes(fill = variable),alpha = .5,width = 0.6) + 
+  geom_stratum(aes(fill = variable),width = 0.6) +
+  ylab(label = "Abundance (ng/g wt.)") + xlab(label = "") + 
+  scale_fill_manual(values = Palette_br) +
+  theme_bw()+ theme(panel.grid=element_blank()) + 
+  theme(panel.border = element_blank()) +
+  theme(panel.background=element_rect(fill='transparent', color='black'),plot.margin = unit(c(3,5,1,1),"mm")) +
+  theme(axis.text=element_text(colour="black",size=16)) + 
+  theme(axis.line = element_line(colour = "black"))+ 
+  theme(axis.title.y = element_text(size = 18, margin = unit(c(0,1,0,1),"lines"))) + 
+  theme(legend.text = element_text(colour = "black",size = 15)) + 
+  theme(legend.title = element_blank())
+
+p_ipl <- ggplot(data = ipl_l,aes(x = SampleID, y = value, alluvium = variable, stratum = variable)) + 
+  geom_alluvium(aes(fill = variable),alpha = .5,width = 0.6) + 
+  geom_stratum(aes(fill = variable),width = 0.6) +
+  ylab(label = "Abundance (ng/g wt.)") + xlab(label = "") + 
+  scale_fill_manual(values = Palette_br) +
+  theme_bw()+ theme(panel.grid=element_blank()) + 
+  theme(panel.border = element_blank()) +
+  theme(panel.background=element_rect(fill='transparent', color='black'),plot.margin = unit(c(3,5,1,1),"mm")) +
+  theme(axis.text=element_text(colour="black",size=16)) + 
+  theme(axis.line = element_line(colour = "black"))+ 
+  theme(axis.title.y = element_text(size = 18, margin = unit(c(0,1,0,1),"lines"))) + 
+  theme(legend.text = element_text(colour = "black",size = 15)) + 
+  theme(legend.title = element_blank())
+
+p_cl
+p_ipl
+#-----------phyla-----------------------------------------------------
+phyla <- read.table("Fig3c.txt", header = T, stringsAsFactors = F)
+
+phyla_l <- melt(phyla)
+
+library(ggplot2)
+library(ggalluvial)
+
+#colors
+
+Palette2<- c("#A7D0D8", "#9BC4E0","#E6EEE9","#88ACBC","#3C979F","#709ED0", 
+             "#AFC8B2","#8FA678","#DFEAA6","#9CBB89","#A2D188","#96B23C",
+             "#DD7E81", "#AE4A74",
+             "#FCD97D")
+
+p_phyla <- ggplot(data = phyla_l,aes(x = SampleID, y = value, alluvium = variable, stratum = variable)) + 
+  geom_alluvium(aes(fill = variable),alpha = .5,width = 0.6) + 
+  geom_stratum(aes(fill = variable),width = 0.6) +
+  ylab(label = "Relative Abundance (%)") + xlab(label = "") + 
+  scale_fill_manual(values = rev(Palette2)) +
+  theme_bw()+ theme(panel.grid=element_blank()) + 
+  theme(panel.border = element_blank()) +
+  theme(panel.background=element_rect(fill='transparent', color='black'),plot.margin = unit(c(3,5,1,1),"mm")) +
+  theme(axis.text=element_text(colour="black",size=16)) + 
+  theme(axis.line = element_line(colour = "black"))+ 
+  theme(axis.title.y = element_text(size = 18, margin = unit(c(0,1,0,1),"lines"))) + 
+  theme(legend.text = element_text(colour = "black",size = 15)) + 
+  theme(legend.title = element_blank())
+
+p_phyla
+#save the fig
+ggarrange(p_cl,p_ipl,p_phyla, ncol = 3)
+ggsave("fig3.pdf",height = 6,width = 24)

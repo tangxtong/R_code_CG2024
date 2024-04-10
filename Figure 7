@@ -1,0 +1,103 @@
+# Estimate effects of multiple predictors of MBT′5ME.
+#import packages
+library(ggplot2)
+library(MuMIn)
+library(rdacca.hp)
+#predictors
+gdgt <- read.csv(file="GDGTs_GLMM.csv", stringsAsFactors=F, row.names=1)
+library(tidyverse)
+gdgt <- gdgt[1:20,] #only the paired hummock-hollow samples
+
+gdgt.scale <- gdgt %>%
+  mutate(across(.cols = !contains(c("Site","Topography")),.fns = scale), # normalize the data
+         Topography = factor(Topography, levels = c("H","L"))) %>% 
+  data.frame()
+         
+# 2.1.1 model construct
+fm1 <- lm(
+  MBT5me_CL ~ Topography + SoilTmpt + SWC + pH + Shannon + Observed + MAAT + Tsoil + CL_ASVs + VariedBac,
+  data = gdgt.scale,
+  na.action = "na.fail" 
+  )
+# 2.1.2 Generate model selection table
+dd <- MuMIn::dredge(
+  fm1,
+  rank = "BIC", 
+  beta = "partial.sd",
+  extra = alist(AICc,AIC, BIC, ICOMP, Cp,"R^2","adjR^2"))
+         
+dd %>%
+  summary()
+
+# 2.1.3 Extract the best fitting model
+fm_best <- summary(get.models(dd, 1)[[1]])
+fm_best
+
+#Extract regression coefficient, standard error of regression coefficient, P-value
+stat.lm <- fm_best$coefficients[-1, ]
+stat.lm <- data.frame(stat.lm, check.names = FALSE)
+stat.lm$env <- rownames(stat.lm)
+stat.lm$sig <- ifelse(stat.lm$'Pr(>|t|)'>0.05, '', ifelse(stat.lm$'Pr(>|t|)'>0.01, '*', ifelse(stat.lm$'Pr(>|t|)'>0.001, '**', '***')))
+stat.lm$label <- paste(stat.lm$env, stat.lm$sig)
+stat.lm
+ 
+#group the  explanatory variables
+stat.lm[which(stat.lm$env %in% c('SoilTmpt', 'SWC', 'TopographyL', 'pH', 'MAAT', 'MAAT_Summer', 'Tsoil', 'Tsoil_Summer','SiteYZYC')),'type'] <- 'Abiotic'
+stat.lm[which(stat.lm$env %in% c('Shannon','VariedBac','Observed','CL_ASVs','IIa_ASVs')),'type'] <- 'Biotic'
+ 
+stat.lm <- stat.lm[order(stat.lm$type, stat.lm$ Estimate), ]
+stat.lm$env <- factor(stat.lm$env, levels = stat.lm$env)
+ 
+#The forest map is drawn to show the standardized regression coefficient, standard error of regression coefficient and P-value of variables
+ 
+p1 <- ggplot(stat.lm, aes(x = env, y = Estimate, color = type)) + 
+geom_point(size = 2) + 
+geom_errorbar(aes(ymin = Estimate - `Std. Error`, ymax = Estimate + `Std. Error`), width = 0.1, size = 1, show.legend = FALSE) +  #误差线表示回归系数的标准误
+scale_color_manual(values = c("#a4496f","#3d9098")) +
+coord_flip() +  
+geom_hline(yintercept = 0, linetype = 2) +  
+labs(x = '', y = 'Parameter estimate', color = '') +  
+theme(panel.grid = element_blank(), panel.background = element_blank(), 
+    axis.line.x = element_line(), axis.ticks.y = element_blank(), 
+    legend.key = element_blank()) +
+scale_x_discrete(breaks = stat.lm$env, labels = stat.lm$label, position = 'top')
+ 
+p1
+#use the rdacca.hp package to calculate the variance explanation rate of the explanatory variables in the linear model
+         
+iv <- list(
+    Abiotic = gdgt.scale[c('SoilTmpt', 'SWC', 'Topography')], 
+    Biotic = gdgt.scale[c('Shannon','CL_ASVs','VariedBac','Observed')]
+)
+ 
+hp <- rdacca.hp(gdgt.scale['MBT5me_CL'], iv, method = 'RDA', type = 'adjR2')
+
+hp$Total_explained_variation
+fm_best$adj.r.squared
+
+#extract Individual effect, i.e., relative effect of estimates
+hp.ie <- data.frame(hp$Hier.part, check.names = FALSE)
+hp.ie$env <- rownames(hp.ie)
+hp.ie$env <- factor(hp.ie$env, levels = rev(hp.ie$env))
+hp.ie$exp_var <- ''
+hp.ie
+hp.ie$env <- factor(hp.ie$env, levels = c('Biotic','Abiotic'))
+#Use a bar chart to visualize the variance explanation rate for explanatory variables
+p2 <- ggplot(hp.ie, aes(x = exp_var, y = Individual*100, fill = env)) + 
+geom_col(width = 0.75) + 
+scale_fill_manual(values = rev(c("#a4496f","#3d9098")))  +
+theme(panel.grid = element_blank(), panel.background = element_blank(), 
+    axis.ticks.x = element_blank(), axis.line.y = element_line(color = 'gray30')) +
+labs(x = paste('adjR2 =', round(hp$Total_explained_variation, 3)), y = 'Estimates effect (%)', fill = '') +
+geom_text(aes(label = hp$Hier.par[,3]*100), vjust = 1.5) +
+scale_x_discrete(position = 'top') +
+scale_y_continuous(limits = c(0, 100), expand = c(0, 0))
+ 
+p2
+ 
+#Combined with the two plots 
+library(patchwork)
+ 
+p2 <- p2 + theme(legend.position = 'none')
+p2 + p1 + plot_layout(ncol = 2, widths = c(1, 2))
+ggsave("Estimates effects of multiple predictors of MBT'5ME_CLs.pdf",width = 6, height =4)

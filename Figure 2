@@ -1,4 +1,4 @@
-#the following code is for Figure 2 "The differences of environmental variables and brGDGT-based proxies between the hummocks and hollows in the NMC and YZYC peatlands. "
+#Paired boxplot for The differences of environmental variables and brGDGT-based proxies between the hummocks and hollows
 #required packages 
 library(readxl)
 library(ggpubr)

@@ -1,0 +1,89 @@
+#bubble plot and barplot to exhibit the number of brGDGT fractions related to the microbial taxa
+# required packages
+library(dplyr)
+library(readxl)
+
+#Statistical the frequency of phylum and acido class, respectively
+freq <- as.data.frame(read_excel("IPL_edge.xlsx",sheet = "freq_phy"))
+freq <- as.data.frame(read_excel("IPL_edge.xlsx",sheet = "freq_acido"))
+# Filter and count freq with dplyr package
+result <- freq %>%
+  filter(grepl("^brGDGT", Target)) %>%
+  group_by(Source, Target) %>%
+  summarize(Count = n())
+
+print(result)
+# replaces the target string with an empty string by gsub() function
+result$Target <- gsub("brGDGT-", "", result$Target)
+print(result)
+col_phyla <- read.csv("col_phyla.csv",header = T, stringsAsFactors = F)
+
+colnames(col_phyla) <- c("Source","Hex")
+Palette2<- c("#A7D0D8", "#9BC4E0","#88ACBC","#3C979F","#709ED0", "#E6EEE9",
+             "#AFC8B2","#8FA678","#DFEAA6","#9CBB89","#A2D188","#96B23C",
+             "#DD7E81", "#AE4A74",
+             "#FCD97D")
+library(ggplot2)
+
+p1 <- ggplot(result, aes(Target, Source))+
+  geom_point(aes(fill = Source, size = Count), shape = 21, color = "black")+
+  scale_size_continuous(range = c(2, 10), guide = "none")+
+  guides(fill=guide_legend(override.aes = list(size=6,alpha=1)))+
+  theme_bw()+
+  theme(axis.text = element_text(size = 12, color = "black"))+
+  labs(fill = NULL, x = NULL, y = NULL)+
+  scale_fill_manual(values = col_phyla$Hex)
+  
+  p1
+  
+#Count the frequency of phylum
+result_summary1 <- result %>%
+  group_by(Source) %>%
+  summarise(Count = sum(Count))
+
+result_summary1
+identical(sum(result_summary1$Count), dim(freq)[1]) #should be TRUE
+
+p2 <- ggplot(result_summary1, aes(y = Source, x = Count, fill = Source)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(x = Count+2, label = Count)) +
+  scale_fill_manual(values = col_phyla$Hex) +
+  labs(x = "", y = "") +
+  theme_bw()+ theme(panel.grid=element_blank()) + 
+  theme(panel.border = element_blank()) +
+  theme(panel.background=element_rect(fill='transparent', color='black')) +
+  theme(axis.text=element_text(colour="black",size=10), axis.text.y = element_blank()) + 
+  theme(axis.line = element_line(colour = "black"))+ 
+  theme(axis.title.y = element_text(size = 18, margin = unit(c(0,1,0,1),"lines"))) + 
+  theme(legend.text = element_text(colour = "black",size = 15)) + 
+  theme(legend.position = "none")
+  
+#Count the frequency of GDGTs
+result_summary2 <- result %>%
+  group_by(Target) %>%
+  summarise(Count = sum(Count))
+
+result_summary2
+identical(sum(result_summary2$Count), dim(freq)[1]) #should be TRUE
+
+p3 <- ggplot(result_summary2, aes(y = Target, x = Count)) +
+  geom_bar(stat = "identity", fill = "#AE4A74") +
+  geom_text(aes(x = Count+2, label = Count)) +
+  labs(x = "", y = "") +
+  theme_bw()+ theme(panel.grid=element_blank()) + 
+  theme(panel.border = element_blank()) +
+  theme(panel.background=element_rect(fill='transparent', color='black')) +
+  theme(axis.text=element_text(colour="black",size=10), axis.text.x = element_blank()) + 
+  theme(axis.line = element_line(colour = "black"))+ 
+  theme(axis.title.y = element_text(size = 18, margin = unit(c(0,1,0,1),"lines"))) + 
+  theme(legend.text = element_text(colour = "black",size = 15)) + 
+  theme(legend.title = element_blank()) + 
+  coord_flip()
+
+library(aplot)
+p1%>%insert_top(p3, height = 0.3) %>% 
+  insert_right(p2, width = 0.3)
+
+#save the plots
+ggsave("bubble_phyla.pdf", width = 12, height = 6)
+ggsave("bubble_acido.pdf", width = 12, height = 6)

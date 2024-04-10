@@ -8,7 +8,7 @@ library(ggsci)
 pairedboxlot_list <- list()
 
 #import data and assign rank order
-envparied <- as.data.frame(read_excel("Fig1b.xlsx",sheet = "fig1b"))
+envparied <- as.data.frame(read_excel("Fig2.xlsx",sheet = "fig1b"))
 envparied$Layer <- factor(envparied$Layer, levels = c("Hummocks","Hollows"))
 
 # fig drawing

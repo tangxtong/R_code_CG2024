@@ -1,0 +1,67 @@
+#PCoA for the The distribution pattern of brGDGTs and bacteria
+#import packages
+library(ape)
+library(vegan)
+library(ggplot2)
+library(ggpubr)
+library(gridExtra)
+#read data
+cl_pcoa <- read.table("Fig4a_cl_br.txt", header = T, row.names = 1, stringsAsFactors = F)
+ipl_pcoa <- read.table("Fig4b_ipl_br.txt", header = T, row.names = 1, stringsAsFactors = F)
+taxa_pcoa <- read.table("Fig4c_taxa.txt", header = T, row.names = 1, stringsAsFactors = F)
+
+# creat a blank list
+plots <- list()
+
+# Loop through three datasets
+data_names <- c("cl_pcoa", "ipl_pcoa", "taxa_pcoa")
+
+for (i in 1:length(data_names)) {
+  data <- get(data_names[i])
+  
+  # Calculate Bray-Curtis distance matrix
+  dist <- vegdist(data[, -1], method = "bray")
+  
+  # PCoA analysis
+  pcoa <- pcoa(dist, correction = "none", rn = NULL)
+  
+  # extract data
+  PC1 <- pcoa$vectors[, 1]
+  PC2 <- pcoa$vectors[, 2]
+  plotdata <- data.frame(rownames(pcoa$vectors), PC1, PC2, data$Group)
+  colnames(plotdata) <- c("Sample", "PC1", "PC2", "Group")
+  
+  # define colors
+  palette <- c("#84C9EF", "#88ACBC", "#AE4C9D", "#BCA3AF")
+  
+  # acquire the explanatory proportions used to draw horizontal and vertical labels
+  pc1 <- round(pcoa$values$Relative_eig[1] * 100, 1)
+  pc2 <- round(pcoa$values$Relative_eig[2] * 100, 1)
+  
+  # plot
+  plot <- ggplot(plotdata, aes(PC1, PC2)) +
+    geom_point(aes(color = Group), size = 5) +
+    scale_color_manual(values = palette) +
+    theme_classic() +
+    geom_vline(xintercept = 0, linetype = "dotted", size = 1) +
+    geom_hline(yintercept = 0, linetype = "dotted", size = 1) +
+    xlab(paste("PCoA1 (", pc1, "%)", sep = "")) +
+    ylab(paste("PCoA2 (", pc2, "%)", sep = "")) +
+    theme(text = element_text(size = 30)) +
+    theme(legend.text = element_text(colour = "black", size = 24)) +
+    theme(legend.title = element_blank()) +
+    theme(axis.text.x = element_text(colour = "black", size = 18)) +
+    theme(axis.text.y = element_text(colour = "black", size = 18)) +
+    theme(axis.line = element_line(colour = "black", size = 1.2)) +
+    theme(
+      axis.title.y = element_text(size = 20, margin = unit(c(0, 0.5, 0, 1), "lines")),
+      axis.title.x = element_text(size = 20, margin = unit(c(0.5, 0, 1, 0), "lines"))
+    )
+  
+  # add the three plot to list
+  plots[[data_names[i]]] <- plot
+}
+
+# print
+grid.arrange(grobs = plots, nrow = 1)
+ggsave("fig4.pdf",height = 6,width = 24)
